@@ -4,7 +4,6 @@ import requests
 import subprocess
 import os
 import tarfile
-import gzip
 from sh import gunzip
 import re
 import shutil
@@ -40,11 +39,13 @@ with tqdm(total=total_size, unit="B", unit_scale=True) as progress_bar:
             progress_bar.update(len(data))
             f.write(data)
 
+# Extract contents of the OVA 
 print(f"[+] Extracting contents of /tmp/{file_name}/{file_name}....\n")
 tar = tarfile.open(f"/tmp/{file_name}/{file_name}")
 tar.extractall(path=f'/tmp/{file_name}/', filter='data')
 tar.close()
 
+# Count the VMDK files in the OVA file and decompress from their gzip compression 
 found_vmdk = []
 count_vmdk = 0
 found_ovf = []
@@ -60,6 +61,7 @@ print(f"[+] Found {count_vmdk} vmdk file(s)\n")
 for gzip in found_vmdk:
     gunzip(f'/tmp/{file_name}/{gzip}')
 
+# Change the .vmdk.gz in the OVF to only .vmdk to match the new decompressed VMDK
 print(f"[+] Subsituting .vmdk.gz in the found ovf file with .vmdk....\n")
 for ovf in found_ovf:
     with open(f'/tmp/{file_name}/{ovf}', 'r') as f:
@@ -69,6 +71,7 @@ for ovf in found_ovf:
     with open(f'/tmp/{file_name}/{ovf}', 'w') as f:
         f.write(content_new)
 
+# Use the Proxmox QM toolset to install the VM with the OVF
 print(f"[+] Installing VM {file_name} on VMID:{args.vmid} and Storage: {args.storage}....\n")
 subprocess.run(
         [
@@ -79,6 +82,8 @@ subprocess.run(
             args.storage,
         ]
     )
+
+# Add network interfaces for either if the VM is a router or not a router
 print(f"[+] Is router: {args.router}. Adding network interfaces....\n")
 if args.router:
     subprocess.run(
